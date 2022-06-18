@@ -8,7 +8,7 @@
  *                        Aleksandr Romanov 
  */ 
 
-module sm_register
+module sm_register // регистр с асинхронным сбросом
 (
     input                 clk,
     input                 rst,
@@ -23,7 +23,7 @@ module sm_register
 endmodule
 
 
-module sm_register_we
+module sm_register_we // we - write enable 
 (
     input                 clk,
     input                 rst,

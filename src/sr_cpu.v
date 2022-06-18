@@ -25,6 +25,7 @@ module sr_cpu
     wire        regWrite;
     wire        aluSrc;
     wire        wdSrc;
+    wire        mult_ext;
     wire  [2:0] aluControl;
 
     //instruction decode wires
@@ -43,7 +44,8 @@ module sr_cpu
     wire [31:0] pcBranch = pc + immB;
     wire [31:0] pcPlus4  = pc + 4;
     wire [31:0] pcNext   = pcSrc ? pcBranch : pcPlus4;
-    sm_register r_pc(clk ,rst_n, pcNext, pc);
+    wire        pcWe     = !mult_ext;
+    sm_register_we r_pc(clk ,rst_n, pcWe, pcNext, pc);
 
     //program memory access
     assign imAddr = pc >> 2;
@@ -71,11 +73,11 @@ module sr_cpu
 
     sm_register_file rf (
         .clk        ( clk          ),
-        .a0         ( regAddr      ),
+        .a0         ( regAddr      ), // debug чтобы вывести на плату
         .a1         ( rs1          ),
         .a2         ( rs2          ),
         .a3         ( rd           ),
-        .rd0        ( rd0          ),
+        .rd0        ( rd0          ), // debug чтобы вывести на плату
         .rd1        ( rd1          ),
         .rd2        ( rd2          ),
         .wd3        ( wd3          ),
@@ -105,6 +107,7 @@ module sr_cpu
         .cmdF3      ( cmdF3        ),
         .cmdF7      ( cmdF7        ),
         .aluZero    ( aluZero      ),
+        .mult_ext   ( mult_ext     ),
         .pcSrc      ( pcSrc        ),
         .regWrite   ( regWrite     ),
         .aluSrc     ( aluSrc       ),
@@ -164,6 +167,7 @@ module sr_control
     input     [ 6:0] cmdF7,
     input            aluZero,
     output           pcSrc, 
+    output reg       mult_ext,
     output reg       regWrite, 
     output reg       aluSrc,
     output reg       wdSrc,
@@ -179,6 +183,7 @@ module sr_control
         regWrite    = 1'b0;
         aluSrc      = 1'b0;
         wdSrc       = 1'b0;
+        mult_ext    = 1'b0;
         aluControl  = `ALU_ADD;
 
         casez( {cmdF7, cmdF3, cmdOp} )
@@ -187,12 +192,15 @@ module sr_control
             { `RVF7_SRL,  `RVF3_SRL,  `RVOP_SRL  } : begin regWrite = 1'b1; aluControl = `ALU_SRL;  end
             { `RVF7_SLTU, `RVF3_SLTU, `RVOP_SLTU } : begin regWrite = 1'b1; aluControl = `ALU_SLTU; end
             { `RVF7_SUB,  `RVF3_SUB,  `RVOP_SUB  } : begin regWrite = 1'b1; aluControl = `ALU_SUB;  end
+            { `RVF7_SRLI, `RVF3_SRLI, `RVF3_SRLI } : begin regWrite = 1'b1; aluControl = `ALU_SRL; end
 
             { `RVF7_ANY,  `RVF3_ADDI, `RVOP_ADDI } : begin regWrite = 1'b1; aluSrc = 1'b1; aluControl = `ALU_ADD; end
             { `RVF7_ANY,  `RVF3_ANY,  `RVOP_LUI  } : begin regWrite = 1'b1; wdSrc  = 1'b1; end
 
             { `RVF7_ANY,  `RVF3_BEQ,  `RVOP_BEQ  } : begin branch = 1'b1; condZero = 1'b1; aluControl = `ALU_SUB; end
             { `RVF7_ANY,  `RVF3_BNE,  `RVOP_BNE  } : begin branch = 1'b1; aluControl = `ALU_SUB; end
+
+            { `RVF7_MULDIV, `RVF3_MUL, `RVOP_MUL } : begin regWrite = 1'b1; aluControl = `ALU_MUL; /* mult_ext = 1'b1; */ end
         endcase
     end
 endmodule
@@ -213,6 +221,7 @@ module sr_alu
             `ALU_SRL  : result = srcA >> srcB [4:0];
             `ALU_SLTU : result = (srcA < srcB) ? 1 : 0;
             `ALU_SUB : result = srcA - srcB;
+            `ALU_MUL : result = srcA * srcB;
         endcase
     end
 
