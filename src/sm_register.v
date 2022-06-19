@@ -37,3 +37,18 @@ module sm_register_we // we - write enable
         else
             if(we) q <= d;
 endmodule
+
+module sm_register_we_n // we - write enable 
+(
+    input                 clk,
+    input                 rst,
+    input                 we,
+    input      [ 31 : 0 ] d,
+    output reg [ 31 : 0 ] q
+);
+    always @ (negedge clk or negedge rst)
+        if(~rst)
+            q <= 32'b0;
+        else
+            if(we) q <= d;
+endmodule

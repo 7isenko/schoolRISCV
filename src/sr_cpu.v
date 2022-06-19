@@ -24,8 +24,10 @@ module sr_cpu
     wire        pcSrc;
     wire        regWrite;
     wire        aluSrc;
-    wire        wdSrc;
-    wire        mult_ext;
+    wire  [1:0] wdSrc;
+    wire        multiCycleExt;
+    wire        arithmeticStart;
+    wire        arithmeticBusy;
     wire  [2:0] aluControl;
 
     //instruction decode wires
@@ -44,8 +46,8 @@ module sr_cpu
     wire [31:0] pcBranch = pc + immB;
     wire [31:0] pcPlus4  = pc + 4;
     wire [31:0] pcNext   = pcSrc ? pcBranch : pcPlus4;
-    wire        pcWe     = !mult_ext;
-    sm_register_we r_pc(clk ,rst_n, pcWe, pcNext, pc);
+    wire        pcWe     = !(arithmeticBusy & multiCycleExt);
+    sm_register_we_n r_pc(clk ,rst_n, pcWe, pcNext, pc);
 
     //program memory access
     assign imAddr = pc >> 2;
@@ -99,20 +101,27 @@ module sr_cpu
         .result     ( aluResult    ) 
     );
 
-    assign wd3 = wdSrc ? immU : aluResult;
+    //arithmetic
+    wire[8:0] arithmeticOut;
+
+    hypotenuse my_hypotenuse(clk, arithmeticStart, rd1[7:0], rd2[7:0], arithmeticOut, arithmeticBusy);
+
+    assign wd3 = (wdSrc[1]) ? {23'b0, arithmeticOut} : (wdSrc[0]) ? immU : aluResult;
 
     //control
     sr_control sm_control (
-        .cmdOp      ( cmdOp        ),
-        .cmdF3      ( cmdF3        ),
-        .cmdF7      ( cmdF7        ),
-        .aluZero    ( aluZero      ),
-        .mult_ext   ( mult_ext     ),
-        .pcSrc      ( pcSrc        ),
-        .regWrite   ( regWrite     ),
-        .aluSrc     ( aluSrc       ),
-        .wdSrc      ( wdSrc        ),
-        .aluControl ( aluControl   ) 
+        .cmdOp              ( cmdOp           ),
+        .cmdF3              ( cmdF3           ),
+        .cmdF7              ( cmdF7           ),
+        .aluZero            ( aluZero         ),
+        .arithmeticBusy     ( arithmeticBusy  ),
+        .multiCycleExt      ( multiCycleExt   ),
+        .pcSrc              ( pcSrc           ),
+        .regWrite           ( regWrite        ),
+        .aluSrc             ( aluSrc          ),
+        .wdSrc              ( wdSrc           ),
+        .aluControl         ( aluControl      ),
+        .arithmeticStart    ( arithmeticStart ) 
     );
 
 endmodule
@@ -166,42 +175,54 @@ module sr_control
     input     [ 2:0] cmdF3,
     input     [ 6:0] cmdF7,
     input            aluZero,
+    input            arithmeticBusy,
     output           pcSrc, 
-    output reg       mult_ext,
+    output reg       multiCycleExt = 1'b0,
     output reg       regWrite, 
     output reg       aluSrc,
-    output reg       wdSrc,
-    output reg [2:0] aluControl
+    output reg [1:0] wdSrc,
+    output reg [2:0] aluControl,
+    output reg       arithmeticStart = 1'b0
 );
     reg          branch;
     reg          condZero;
     assign pcSrc = branch & (aluZero == condZero);
 
     always @ (*) begin
-        branch      = 1'b0;
-        condZero    = 1'b0;
-        regWrite    = 1'b0;
-        aluSrc      = 1'b0;
-        wdSrc       = 1'b0;
-        mult_ext    = 1'b0;
-        aluControl  = `ALU_ADD;
+        if (arithmeticBusy | multiCycleExt) begin
+                arithmeticStart = 1'b0;
+        end else begin
+            branch          = 1'b0;
+            condZero        = 1'b0;
+            regWrite        = 1'b0;
+            aluSrc          = 1'b0;
+            wdSrc           = 2'b00;
+            arithmeticStart = 1'b0;
+            multiCycleExt   = 1'b0;
+            aluControl      = `ALU_ADD;
+    
+            casez( {cmdF7, cmdF3, cmdOp} )
+                { `RVF7_ADD,  `RVF3_ADD,  `RVOP_ADD  } : begin regWrite = 1'b1; aluControl = `ALU_ADD;  end
+                { `RVF7_OR,   `RVF3_OR,   `RVOP_OR   } : begin regWrite = 1'b1; aluControl = `ALU_OR;   end
+                { `RVF7_SRL,  `RVF3_SRL,  `RVOP_SRL  } : begin regWrite = 1'b1; aluControl = `ALU_SRL;  end
+                { `RVF7_SLTU, `RVF3_SLTU, `RVOP_SLTU } : begin regWrite = 1'b1; aluControl = `ALU_SLTU; end
+                { `RVF7_SUB,  `RVF3_SUB,  `RVOP_SUB  } : begin regWrite = 1'b1; aluControl = `ALU_SUB;  end
+    
+                { `RVF7_ANY,  `RVF3_ADDI, `RVOP_ADDI } : begin regWrite = 1'b1; aluSrc = 1'b1; aluControl = `ALU_ADD; end
+                { `RVF7_SRLI, `RVF3_SRLI, `RVOP_SRLI } : begin regWrite = 1'b1; aluSrc = 1'b1; aluControl = `ALU_SRL; end
+                { `RVF7_ANY,  `RVF3_ANY,  `RVOP_LUI  } : begin regWrite = 1'b1; wdSrc  = 2'b01; end
+    
+                { `RVF7_ANY,  `RVF3_BEQ,  `RVOP_BEQ  } : begin branch = 1'b1; condZero = 1'b1; aluControl = `ALU_SUB; end
+                { `RVF7_ANY,  `RVF3_BNE,  `RVOP_BNE  } : begin branch = 1'b1; aluControl = `ALU_SUB; end
+    
+                { `RVF7_MULDIV, `RVF3_MUL, `RVOP_MUL } : begin regWrite = 1'b1; aluControl = `ALU_MUL; /* multiCycleExt = 1'b1; */ end
+                { `RVF7_HYPO, `RVF3_HYPO, `RVOP_HYPO } : begin regWrite = 1'b1; multiCycleExt = 1'b1; arithmeticStart = 1'b1; wdSrc=2'b10; end
+            endcase
+        end
+    end
 
-        casez( {cmdF7, cmdF3, cmdOp} )
-            { `RVF7_ADD,  `RVF3_ADD,  `RVOP_ADD  } : begin regWrite = 1'b1; aluControl = `ALU_ADD;  end
-            { `RVF7_OR,   `RVF3_OR,   `RVOP_OR   } : begin regWrite = 1'b1; aluControl = `ALU_OR;   end
-            { `RVF7_SRL,  `RVF3_SRL,  `RVOP_SRL  } : begin regWrite = 1'b1; aluControl = `ALU_SRL;  end
-            { `RVF7_SLTU, `RVF3_SLTU, `RVOP_SLTU } : begin regWrite = 1'b1; aluControl = `ALU_SLTU; end
-            { `RVF7_SUB,  `RVF3_SUB,  `RVOP_SUB  } : begin regWrite = 1'b1; aluControl = `ALU_SUB;  end
-            { `RVF7_SRLI, `RVF3_SRLI, `RVF3_SRLI } : begin regWrite = 1'b1; aluControl = `ALU_SRL; end
-
-            { `RVF7_ANY,  `RVF3_ADDI, `RVOP_ADDI } : begin regWrite = 1'b1; aluSrc = 1'b1; aluControl = `ALU_ADD; end
-            { `RVF7_ANY,  `RVF3_ANY,  `RVOP_LUI  } : begin regWrite = 1'b1; wdSrc  = 1'b1; end
-
-            { `RVF7_ANY,  `RVF3_BEQ,  `RVOP_BEQ  } : begin branch = 1'b1; condZero = 1'b1; aluControl = `ALU_SUB; end
-            { `RVF7_ANY,  `RVF3_BNE,  `RVOP_BNE  } : begin branch = 1'b1; aluControl = `ALU_SUB; end
-
-            { `RVF7_MULDIV, `RVF3_MUL, `RVOP_MUL } : begin regWrite = 1'b1; aluControl = `ALU_MUL; /* mult_ext = 1'b1; */ end
-        endcase
+    always @ (negedge arithmeticBusy) begin
+            multiCycleExt = 1'b0;
     end
 endmodule
 
@@ -220,8 +241,7 @@ module sr_alu
             `ALU_OR   : result = srcA | srcB;
             `ALU_SRL  : result = srcA >> srcB [4:0];
             `ALU_SLTU : result = (srcA < srcB) ? 1 : 0;
-            `ALU_SUB : result = srcA - srcB;
-            `ALU_MUL : result = srcA * srcB;
+            `ALU_SUB  : result = srcA - srcB;
         endcase
     end
 
