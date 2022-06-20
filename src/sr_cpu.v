@@ -46,7 +46,7 @@ module sr_cpu
     wire [31:0] pcBranch = pc + immB;
     wire [31:0] pcPlus4  = pc + 4;
     wire [31:0] pcNext   = pcSrc ? pcBranch : pcPlus4;
-    wire        pcWe     = !(arithmeticBusy & multiCycleExt);
+    wire        pcWe;
     sm_register_we_n r_pc(clk ,rst_n, pcWe, pcNext, pc);
 
     //program memory access
@@ -117,6 +117,7 @@ module sr_cpu
         .arithmeticBusy     ( arithmeticBusy  ),
         .multiCycleExt      ( multiCycleExt   ),
         .pcSrc              ( pcSrc           ),
+        .pcWe               ( pcWe            ),
         .regWrite           ( regWrite        ),
         .aluSrc             ( aluSrc          ),
         .wdSrc              ( wdSrc           ),
@@ -177,6 +178,7 @@ module sr_control
     input            aluZero,
     input            arithmeticBusy,
     output           pcSrc, 
+    output           pcWe,
     output reg       multiCycleExt = 1'b0,
     output reg       regWrite, 
     output reg       aluSrc,
@@ -187,6 +189,7 @@ module sr_control
     reg          branch;
     reg          condZero;
     assign pcSrc = branch & (aluZero == condZero);
+    assign pcWe  = !(arithmeticBusy & multiCycleExt);
 
     always @ (*) begin
         if (arithmeticBusy | multiCycleExt) begin
