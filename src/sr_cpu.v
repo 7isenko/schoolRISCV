@@ -25,7 +25,6 @@ module sr_cpu
     wire        regWrite;
     wire        aluSrc;
     wire  [1:0] wdSrc;
-    wire        multiCycleExt;
     wire        arithmeticStart;
     wire        arithmeticBusy;
     wire  [2:0] aluControl;
@@ -115,7 +114,6 @@ module sr_cpu
         .cmdF7              ( cmdF7           ),
         .aluZero            ( aluZero         ),
         .arithmeticBusy     ( arithmeticBusy  ),
-        .multiCycleExt      ( multiCycleExt   ),
         .pcSrc              ( pcSrc           ),
         .pcWe               ( pcWe            ),
         .regWrite           ( regWrite        ),
@@ -179,7 +177,6 @@ module sr_control
     input            arithmeticBusy,
     output           pcSrc, 
     output           pcWe,
-    output reg       multiCycleExt = 1'b0,
     output reg       regWrite, 
     output reg       aluSrc,
     output reg [1:0] wdSrc,
@@ -188,13 +185,19 @@ module sr_control
 );
     reg          branch;
     reg          condZero;
+    reg       multiCycleExt = 1'b0;
     assign pcSrc = branch & (aluZero == condZero);
     assign pcWe  = !(arithmeticBusy & multiCycleExt);
 
     always @ (*) begin
         if (arithmeticBusy | multiCycleExt) begin
                 arithmeticStart = 1'b0;
-        end else begin
+                if(!arithmeticBusy & multiCycleExt) begin
+                    multiCycleExt = 1'b0;
+                end
+        end else 
+        begin
+            
             branch          = 1'b0;
             condZero        = 1'b0;
             regWrite        = 1'b0;
@@ -224,9 +227,6 @@ module sr_control
         end
     end
 
-    always @ (negedge arithmeticBusy) begin
-            multiCycleExt = 1'b0;
-    end
 endmodule
 
 module sr_alu
