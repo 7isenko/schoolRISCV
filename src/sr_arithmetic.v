@@ -89,13 +89,14 @@ module sqrt(
     assign end_step = (m == 0);
     assign busy_o = |state;
     assign x_above_b = x>=b;
-    always @(posedge rst_i)
-        begin
-            y_bo <= 0;
-            b <= 0;
-            state <= IDLE;
-        end
     always @(posedge clk_i)
+    if (rst_i)
+    begin
+        y_bo <= 0;
+        b <= 0;
+        state <= IDLE;
+    end
+    else
         begin
             case (state)
                 IDLE:
