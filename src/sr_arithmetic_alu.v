@@ -10,7 +10,7 @@ module hypotenuse_alu(
     output reg [31:0] argA,
     output reg [31:0] argB,
     output wire [8:0] c_bo,
-    output wire  busy_o
+    output reg  ready_o = 1'b0
     );
     
     reg[17:0] sum;
@@ -22,7 +22,6 @@ module hypotenuse_alu(
     localparam START_SQRT       = 3'b100;
     localparam WORK_SQRT        = 3'b101;
     reg[2:0] state = IDLE;
-    assign busy_o = |state;
     
     wire sqrt_start, sqrt_busy;
     wire[8:0] sqrt_rez;
@@ -55,6 +54,7 @@ module hypotenuse_alu(
                     operationALU <= 3'b000;
                     argA <= {16'b0, argA_ALU_mult};
                     argB <= {16'b0, argB_ALU_mult};
+                    ready_o <= 0;
                 end
             WORK_MULT:
                 begin
@@ -91,6 +91,7 @@ module hypotenuse_alu(
                 begin
                     if (!sqrt_busy) begin 
                         state <= IDLE;
+                        ready_o <= 1;
                     end
                     operationALU <= 3'b100;
                     argA <= {14'b0, argA_ALU_sqrt};
@@ -117,47 +118,51 @@ module sqrt_alu(
     reg [17:0] part_result;
     reg [16:0] m;
     reg [1:0] state = IDLE;
+    reg pause = 1'b1;
     wire end_step; 
     wire x_above_b;
     assign end_step = (m == 0);
     assign busy_o = |state;
     assign x_above_b = x>=b;
     always @(posedge clk_i)
-    begin
-        case (state)
-            IDLE:
-                if (start_i) begin
-                    state <= WORK;
-                    part_result <= 0;
-                    x <= x_bi;
-                    y_bo <= 0;
-                    b <= 0;
-                    m <= 1 << 16;
-                end
-            WORK:
-                begin
-                    if (!end_step) begin
-                       b <= part_result | m;
-                       part_result <= part_result >> 1;
-                       state <= RECALC_X; 
-                    end else begin
-                        y_bo <= part_result[8:0];    
-                        state <= IDLE;
-                    end     
-                end
-            RECALC_X:
-                begin
-                    begin
-                        if(x_above_b) begin
-                            x <= alu_res;
-                            part_result <= part_result | m;
-                        end
-                        m <= m >> 2;
+        begin
+            case (state)
+                IDLE:
+                    if (start_i) begin
                         state <= WORK;
+                        part_result <= 0;
+                        x <= x_bi;
+                        m <= 1 << 16;
                     end
-                end    
-        endcase
-    end    
+                WORK:
+                    begin
+                        if (!end_step) begin
+                           b <= part_result | m;
+                           part_result <= part_result >> 1;
+                           state <= RECALC_X; 
+                        end else begin
+                            y_bo <= part_result[8:0];    
+                            state <= IDLE;
+                        end     
+                    end
+                RECALC_X:
+                    begin
+                        if (pause)
+                        begin
+                            pause = 1'b0;
+                        end else
+                        begin
+                            if(x_above_b) begin
+                                x <= alu_res;
+                                part_result <= part_result | m;
+                            end
+                            m <= m >> 2;
+                            state <= WORK;
+                            pause = 1'b1;
+                        end
+                    end    
+            endcase
+        end    
 endmodule
 
 module mult_alu(

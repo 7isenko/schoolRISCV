@@ -25,7 +25,7 @@ module sr_cpu
     wire        regWrite;
     wire [ 1:0] aluSrc;
     wire [ 1:0] wdSrc;
-    wire        arithmeticBusy;
+    wire        arithmeticReady;
     wire [ 2:0] arithmeticALUoper;
     wire [31:0] arithmeticSrcA;
     wire [31:0] arithmeticSrcB;
@@ -107,7 +107,7 @@ module sr_cpu
     wire[8:0] arithmeticOut;
     wire multiCycleExt;
 
-    hypotenuse_alu my_hypotenuse(clk, multiCycleExt, rd1[7:0], rd2[7:0], aluResult, arithmeticALUoper, arithmeticSrcA, arithmeticSrcB, arithmeticOut, arithmeticBusy);
+    hypotenuse_alu my_hypotenuse(clk, multiCycleExt, rd1[7:0], rd2[7:0], aluResult, arithmeticALUoper, arithmeticSrcA, arithmeticSrcB, arithmeticOut, arithmeticReady);
 
     assign wd3 = (wdSrc[1]) ? {23'b0, arithmeticOut} : (wdSrc[0]) ? immU : aluResult;
 
@@ -117,7 +117,7 @@ module sr_cpu
         .cmdF3              ( cmdF3           ),
         .cmdF7              ( cmdF7           ),
         .aluZero            ( aluZero         ),
-        .arithmeticBusy     ( arithmeticBusy  ),
+        .arithmeticReady    ( arithmeticReady ),
         .arithmeticOper     ( arithmeticALUoper),
         .pcSrc              ( pcSrc           ),
         .pcWe               ( pcWe            ),
@@ -179,7 +179,7 @@ module sr_control
     input     [ 2:0] cmdF3,
     input     [ 6:0] cmdF7,
     input            aluZero,
-    input            arithmeticBusy,
+    input            arithmeticReady,
     input     [ 2:0] arithmeticOper,
     output           pcSrc, 
     output           pcWe,
@@ -192,7 +192,7 @@ module sr_control
     reg    branch;
     reg    condZero;
     assign pcSrc = branch & (aluZero == condZero);
-    assign pcWe  = !arithmeticBusy | !multiCycleExt;
+    assign pcWe  = arithmeticReady | !multiCycleExt;
 
     always @ (*) begin
         branch          = 1'b0;
