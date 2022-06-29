@@ -107,7 +107,8 @@ module sr_cpu
     wire[8:0] arithmeticOut;
     wire multiCycleExt;
 
-    hypotenuse_alu my_hypotenuse(clk, multiCycleExt, rd1[7:0], rd2[7:0], aluResult, arithmeticALUoper, arithmeticSrcA, arithmeticSrcB, arithmeticOut, arithmeticReady);
+    hypotenuse_alu my_hypotenuse(clk, multiCycleExt, rd1[7:0], rd2[7:0], 
+    aluResult, arithmeticALUoper, arithmeticSrcA, arithmeticSrcB, arithmeticOut, arithmeticReady);
 
     assign wd3 = (wdSrc[1]) ? {23'b0, arithmeticOut} : (wdSrc[0]) ? immU : aluResult;
 
@@ -201,7 +202,7 @@ module sr_control
         aluSrc          = 2'b00;
         wdSrc           = 2'b00;
         multiCycleExt   = 1'b0;
-        aluControl      = `ALU_ADD;
+        aluControl      =  arithmeticOper;
     
         casez( {cmdF7, cmdF3, cmdOp} )
             { `RVF7_ADD,  `RVF3_ADD,  `RVOP_ADD  } : begin regWrite = 1'b1; aluControl = `ALU_ADD;  end
