@@ -196,11 +196,13 @@ module sr_control
     assign pcWe  = !(arithmeticBusy & multiCycleExt);
 
     always @ (*) begin
+
         if (arithmeticBusy | multiCycleExt) begin
                 arithmeticStart = 1'b0;
                 aluControl = arithmeticOper;
                 if(!arithmeticBusy & multiCycleExt) begin
                     multiCycleExt = 1'b0;
+                    regWrite      = 1'b1;
                 end
         end else 
         begin
@@ -229,7 +231,7 @@ module sr_control
                 { `RVF7_ANY,  `RVF3_BNE,  `RVOP_BNE  } : begin branch = 1'b1; aluControl = `ALU_SUB; end
     
                 { `RVF7_MULDIV, `RVF3_MUL, `RVOP_MUL } : begin regWrite = 1'b1; aluControl = `ALU_MUL; /* multiCycleExt = 1'b1; */ end
-                { `RVF7_HYPO, `RVF3_HYPO, `RVOP_HYPO } : begin regWrite = 1'b1; multiCycleExt = 1'b1; arithmeticStart = 1'b1; wdSrc=2'b10; aluSrc = 2'b10; end
+                { `RVF7_HYPO, `RVF3_HYPO, `RVOP_HYPO } : begin multiCycleExt = 1'b1; arithmeticStart = 1'b1; wdSrc=2'b10; aluSrc = 2'b10; end
             endcase
         end
     end
@@ -277,6 +279,6 @@ module sm_register_file
     assign rd1 = (a1 != 0) ? rf [a1] : 32'b0;
     assign rd2 = (a2 != 0) ? rf [a2] : 32'b0;
 
-    always @ (posedge clk)
+    always @ (posedge clk & we3)
         if(we3) rf [a3] <= wd3;
 endmodule
