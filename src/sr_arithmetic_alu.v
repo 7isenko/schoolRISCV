@@ -21,6 +21,7 @@ module hypotenuse_alu(
     localparam PREP_SQRT        = 3'b011;
     localparam START_SQRT       = 3'b100;
     localparam WORK_SQRT        = 3'b101;
+    localparam ENDING           = 3'b110;
     reg[2:0] state = IDLE;
     
     wire sqrt_start, sqrt_busy;
@@ -90,12 +91,20 @@ module hypotenuse_alu(
             WORK_SQRT:
                 begin
                     if (!sqrt_busy) begin 
-                        state <= IDLE;
+                        state <= ENDING;
                         ready_o <= 1;
                     end
                     operationALU <= 3'b100;
                     argA <= {14'b0, argA_ALU_sqrt};
                     argB <= {14'b0, argB_ALU_sqrt};
+                end
+            ENDING:
+                begin
+                    ready_o <= 0;
+                    if(!start_i)
+                    begin
+                        state <= IDLE;
+                    end
                 end
             endcase
         end

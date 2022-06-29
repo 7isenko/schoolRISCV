@@ -26,6 +26,7 @@ module sr_cpu
     wire [ 1:0] aluSrc;
     wire [ 1:0] wdSrc;
     wire        arithmeticReady;
+
     wire [ 2:0] arithmeticALUoper;
     wire [31:0] arithmeticSrcA;
     wire [31:0] arithmeticSrcB;
