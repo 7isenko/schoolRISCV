@@ -106,9 +106,9 @@ module sr_cpu
 
     //arithmetic
     wire[8:0] arithmeticOut;
-    wire multiCycleExt;
+    wire arithmeticStart;
 
-    hypotenuse_alu my_hypotenuse(clk, multiCycleExt, rd1[7:0], rd2[7:0], 
+    hypotenuse_alu my_hypotenuse(clk, arithmeticStart, rd1[7:0], rd2[7:0], 
     aluResult, arithmeticALUoper, arithmeticSrcA, arithmeticSrcB, arithmeticOut, arithmeticReady);
 
     assign wd3 = (wdSrc[1]) ? {23'b0, arithmeticOut} : (wdSrc[0]) ? immU : aluResult;
@@ -127,7 +127,7 @@ module sr_cpu
         .aluSrc             ( aluSrc          ),
         .wdSrc              ( wdSrc           ),
         .aluControl         ( aluControl      ),
-        .multiCycleExt      ( multiCycleExt   )
+        .multiCycleExt      ( arithmeticStart   )
     );
 
 endmodule
@@ -204,6 +204,10 @@ module sr_control
         wdSrc           = 2'b00;
         multiCycleExt   = 1'b0;
         aluControl      =  arithmeticOper;
+
+        if(arithmeticReady) begin
+            regWrite = 1'b1;
+        end 
     
         casez( {cmdF7, cmdF3, cmdOp} )
             { `RVF7_ADD,  `RVF3_ADD,  `RVOP_ADD  } : begin regWrite = 1'b1; aluControl = `ALU_ADD;  end
@@ -220,7 +224,7 @@ module sr_control
             { `RVF7_ANY,  `RVF3_BNE,  `RVOP_BNE  } : begin branch = 1'b1; aluControl = `ALU_SUB; end
     
             { `RVF7_MULDIV, `RVF3_MUL, `RVOP_MUL } : begin regWrite = 1'b1; aluControl = `ALU_MUL; /* multiCycleExt = 1'b1; */ end
-            { `RVF7_HYPO, `RVF3_HYPO, `RVOP_HYPO } : begin regWrite = 1'b1; multiCycleExt = 1'b1; wdSrc=2'b10; aluSrc = 2'b10; end
+            { `RVF7_HYPO, `RVF3_HYPO, `RVOP_HYPO } : begin multiCycleExt = 1'b1; wdSrc=2'b10; aluSrc = 2'b10; end
         endcase
     end
 
