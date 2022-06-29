@@ -19,7 +19,6 @@ add wave -radix hex sim:/sm_testbench/sm_top/sm_cpu/rf/rf
 add wave -radix hex sim:/sm_testbench/sm_top/sm_cpu/my_hypotenuse/*
 add wave -radix hex sim:/sm_testbench/sm_top/sm_cpu/my_hypotenuse/my_multb/*
 add wave -radix hex sim:/sm_testbench/sm_top/sm_cpu/my_hypotenuse/my_sqrt/*
-add wave -radix hex sim:/sm_testbench/sm_top/sm_cpu/my_hypotenuse/my_sqrt2/*
 
 # start simulation
 run -all
